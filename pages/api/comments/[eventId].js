@@ -1,5 +1,12 @@
-function handler(req, res) {
+import { MongoClient } from "mongodb";
+
+async function handler(req, res) {
   const eventId = req.query.eventId;
+
+  const url =
+    "mongodb+srv://kyahn:3j3IwKSAIYw6nj50@cluster0.7jehjja.mongodb.net/?retryWrites=true&w=majority";
+  const client = new MongoClient(url);
+  const db = client.db("events");
 
   if (req.method === "POST") {
     const { email, name, text } = req.body;
@@ -17,12 +24,23 @@ function handler(req, res) {
     }
 
     const newComment = {
-      id: new Date().toISOString(),
+      // id: new Date().toISOString(),
       email,
       name,
       text,
+      eventId,
     };
-    console.log(newComment);
+
+    try {
+      const comments = db.collection("comments");
+
+      const result = await comments.insertOne({ comment: newComment });
+      console.log(result);
+
+      newComment.id = result.insertedId;
+    } catch (error) {
+      console.log(error);
+    }
 
     res.status(201).json({ message: "Added comment", comment: newComment });
   }
@@ -34,9 +52,20 @@ function handler(req, res) {
       { id: "c2", name: "bbbb", text: "zxcvzxcv" },
       { id: "c3", name: "cccc", text: "qwerqwer" },
     ];
-    res.status(200).json({ comments: dummy });
+
+    const comments = await db
+      .collection("comments")
+      .find({ "comment.eventId": eventId })
+      .sort({ _id: -1 })
+      .toArray();
+    console.log(comments);
+
+    res.status(200).json({ comments: comments });
     return;
   }
+
+  console.log("mongodb client close");
+  client.close();
 }
 
 export default handler;

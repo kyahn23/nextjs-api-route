@@ -10,6 +10,10 @@ function Comments(props) {
   const [showComments, setShowComments] = useState(false);
   const [commentList, setCommentList] = useState([]);
 
+  // 수정포인트 체크 - 45,46 라인 setIsAdd 참고
+  const [isAdded, setIsAdded] = useState(false);
+  // 수정포인트 체크 - 45,46 라인 setIsAdd 참고
+
   useEffect(() => {
     if (!showComments) {
       fetch("/api/comments/" + eventId)
@@ -17,6 +21,16 @@ function Comments(props) {
         .then((data) => setCommentList(data.comments));
     }
   }, [showComments]);
+
+  // 수정포인트 체크 - 45,46 라인 setIsAdd 참고
+  useEffect(() => {
+    if (isAdded) {
+      fetch("/api/comments/" + eventId)
+        .then((response) => response.json())
+        .then((data) => setCommentList(data.comments));
+    }
+  }, [isAdded]);
+  // 수정포인트 체크 - 45,46 라인 setIsAdd 참고
 
   function toggleCommentsHandler() {
     setShowComments((prevStatus) => !prevStatus);
@@ -30,8 +44,8 @@ function Comments(props) {
         "Content-Type": "application/json",
       },
     })
-      .then((response) => response.json())
-      .then((data) => console.log(data));
+      .then((response) => response.json(), setIsAdded(false))
+      .then((data) => setIsAdded(true));
   }
 
   return (
