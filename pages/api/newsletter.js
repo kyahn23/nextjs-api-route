@@ -1,12 +1,10 @@
-import { MongoClient } from "mongodb";
+import { connectDatabase, insertDocument } from "@/helpers/db-util";
 
 async function handler(req, res) {
-  const url =
-    "mongodb+srv://kyahn:3j3IwKSAIYw6nj50@cluster0.7jehjja.mongodb.net/?retryWrites=true&w=majority";
-  const client = new MongoClient(url);
-
-  const db = client.db("newsletter");
-  const emails = db.collection("emails");
+  // 개선포인트 체크 - database, collection 지정
+  const db = "newletter";
+  const col = "emails";
+  // 개선포인트 체크 - database, collection 지정
 
   if (req.method === "POST") {
     const userEmail = req.body.email;
@@ -16,24 +14,26 @@ async function handler(req, res) {
       return;
     }
 
+    let client;
     try {
-      await emails.insertOne({ email: userEmail });
+      client = await connectDatabase();
     } catch (error) {
       console.log(error);
+      res.status(500).json({ message: "Connecting to the database failed" });
+      return;
     }
-    // MongoClient.connect(
-    //   "mongodb+srv://kyahn:3j3IwKSAIYw6nj50@cluster0.7jehjja.mongodb.net/newsletter?retryWrites=true&w=majority"
-    // ).then((client) => {
-    //   const db = client.db();
-    //   db.collection("emails").insertOne(userEmail);
-    // });
+
+    try {
+      await insertDocument(client, db, col, { email: userEmail });
+      client.close();
+      console.log("mongodb client close");
+    } catch (error) {
+      res.status(500).json({ message: "Inserting data failed" });
+    }
 
     console.log(userEmail);
     res.status(201).json({ message: "Signed up!" });
   }
-
-  console.log("mongodb client close");
-  client.close();
 }
 
 export default handler;

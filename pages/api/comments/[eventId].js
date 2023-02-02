@@ -1,12 +1,14 @@
+import { connectDatabase, getData, insertDocument } from "@/helpers/db-util";
 import { MongoClient } from "mongodb";
 
 async function handler(req, res) {
   const eventId = req.query.eventId;
 
-  const url =
-    "mongodb+srv://kyahn:3j3IwKSAIYw6nj50@cluster0.7jehjja.mongodb.net/?retryWrites=true&w=majority";
-  const client = new MongoClient(url);
-  const db = client.db("events");
+  const client = await connectDatabase();
+  // 개선포인트 체크 - database, collection 지정
+  const db = "events";
+  const col = "comments";
+  // 개선포인트 체크 - database, collection 지정
 
   if (req.method === "POST") {
     const { email, name, text } = req.body;
@@ -20,6 +22,7 @@ async function handler(req, res) {
       text.trim() === ""
     ) {
       res.status(422).json({ message: "Invalid input!" });
+      client.close();
       return;
     }
 
@@ -31,41 +34,45 @@ async function handler(req, res) {
       eventId,
     };
 
+    let client;
     try {
-      const comments = db.collection("comments");
-
-      const result = await comments.insertOne({ comment: newComment });
-      console.log(result);
-
-      newComment.id = result.insertedId;
+      client = await connectDatabase();
     } catch (error) {
       console.log(error);
+      res.status(500).json({ message: "Connecting to the database failed" });
+      return;
     }
 
-    res.status(201).json({ message: "Added comment", comment: newComment });
+    let result;
+    try {
+      result = await insertDocument(client, db, col, {
+        comment: newComment,
+      });
+      newComment.id = result.insertedId;
+      res.status(201).json({ message: "Added comment", comment: newComment });
+    } catch (error) {
+      res.status(500).json({ message: "Inserting data failed" });
+    }
   }
 
   if (req.method === "GET") {
     // comment 리스트 불러오기
-    const dummy = [
-      { id: "c1", name: "aaaa", text: "asdfasdf" },
-      { id: "c2", name: "bbbb", text: "zxcvzxcv" },
-      { id: "c3", name: "cccc", text: "qwerqwer" },
-    ];
+    try {
+      const comments = await getData(client, db, col, {
+        "comment.eventId": eventId,
+      });
+      console.log(comments);
 
-    const comments = await db
-      .collection("comments")
-      .find({ "comment.eventId": eventId })
-      .sort({ _id: -1 })
-      .toArray();
-    console.log(comments);
+      res.status(200).json({ comments: comments });
 
-    res.status(200).json({ comments: comments });
-    return;
+      return;
+    } catch (error) {
+      res.status(500).json({ message: "Fetching data failed" });
+    }
   }
 
-  console.log("mongodb client close");
   client.close();
+  console.log("mongodb client close");
 }
 
 export default handler;
