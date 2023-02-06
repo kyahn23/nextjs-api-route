@@ -1,33 +1,48 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 
 import CommentList from "./comment-list";
 import NewComment from "./new-comment";
 import classes from "./comments.module.css";
+import NotificationContext from "@/store/notification-context";
 
 function Comments(props) {
   const { eventId } = props;
 
+  const notificationCtx = useContext(NotificationContext);
+
   const [showComments, setShowComments] = useState(false);
   const [commentList, setCommentList] = useState([]);
+
+  const [isFetchingComments, setIsFetchingComments] = useState(false);
 
   // 수정포인트 체크 - 45,46 라인 setIsAdd 참고
   const [isAdded, setIsAdded] = useState(false);
   // 수정포인트 체크 - 45,46 라인 setIsAdd 참고
 
   useEffect(() => {
-    if (!showComments) {
+    if (showComments) {
+      setIsFetchingComments(true);
       fetch("/api/comments/" + eventId)
         .then((response) => response.json())
-        .then((data) => setCommentList(data.comments));
+        .then((data) => {
+          setIsFetchingComments(false);
+          setCommentList(data.comments);
+        });
     }
   }, [showComments]);
 
   // 수정포인트 체크 - 45,46 라인 setIsAdd 참고
   useEffect(() => {
     if (isAdded) {
+      setIsFetchingComments(true);
+
       fetch("/api/comments/" + eventId)
         .then((response) => response.json())
-        .then((data) => setCommentList(data.comments));
+        .then((data) => {
+          setIsFetchingComments(false);
+
+          setCommentList(data.comments);
+        });
     }
   }, [isAdded]);
   // 수정포인트 체크 - 45,46 라인 setIsAdd 참고
@@ -37,6 +52,12 @@ function Comments(props) {
   }
 
   function addCommentHandler(commentData) {
+    notificationCtx.showNotification({
+      title: "Sending comment..",
+      message: "Your comment is currently being stored into a database.",
+      status: "pending",
+    });
+
     fetch("/api/comments/" + eventId, {
       method: "POST",
       body: JSON.stringify(commentData),
@@ -44,8 +65,31 @@ function Comments(props) {
         "Content-Type": "application/json",
       },
     })
-      .then((response) => response.json(), setIsAdded(false))
-      .then((data) => setIsAdded(true));
+      .then((response) => {
+        if (response.ok) {
+          setIsAdded(false);
+          return response.json();
+        }
+
+        return response.json().then((data) => {
+          throw new Error(data.message || "Something went wrong!");
+        });
+      })
+      .then((data) => {
+        setIsAdded(true);
+        notificationCtx.showNotification({
+          title: "Success",
+          message: "Your comment was saved.",
+          status: "success",
+        });
+      })
+      .catch((error) => {
+        notificationCtx.showNotification({
+          title: "Error",
+          message: error.message || "Something went wrong!",
+          status: "error",
+        });
+      });
   }
 
   return (
@@ -54,7 +98,10 @@ function Comments(props) {
         {showComments ? "Hide" : "Show"} Comments
       </button>
       {showComments && <NewComment onAddComment={addCommentHandler} />}
-      {showComments && <CommentList items={commentList} />}
+      {showComments && !isFetchingComments && (
+        <CommentList items={commentList} />
+      )}
+      {showComments && isFetchingComments && <p>Loading</p>}
     </section>
   );
 }
